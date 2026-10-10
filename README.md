@@ -43,3 +43,7 @@ Java 23 · Spring Boot · Spring Security · Spring Data JPA · Hibernate · MyS
 ## Scope
 
 This is a learning and portfolio project. Deposits are simulated; the application is not connected to a real banking or payment network.
+
+## Update
+
+This project is actively being developed, with more features, enhancements, and improvements coming soon.
