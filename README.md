@@ -62,7 +62,7 @@ The modules separate responsibilities such as configuration, security, user mana
 
 ```bash
 git clone <YOUR_GITHUB_REPOSITORY_URL>
-cd Digital_Wallet
+cd Digital_Wallet_Backend
 ```
 
 Replace the repository URL with your actual GitHub repository URL.
@@ -161,6 +161,47 @@ Authorization: Bearer <YOUR_JWT_TOKEN>
 
 The application uses BCrypt for password hashing and JWT-based authentication for stateless API access.
 
+## Admin Role Setup
+
+Newly registered users receive the `USER` role by default. Public registration does not allow users to assign themselves the `ADMIN` role.
+
+For local development and testing, an administrator can be provisioned by updating the role of a trusted test account directly in the MySQL database.
+
+### 1. Register an account
+
+Register a user using `POST /api/auth/register`, then verify that the account exists in the database.
+
+### 2. Assign the ADMIN role
+
+Run the following SQL command in your local development database, replacing the email with the account you want to promote:
+
+```sql
+UPDATE users
+SET role = 'ADMIN'
+WHERE email = 'admin@example.com';
+```
+
+Verify the change:
+
+```sql
+SELECT email, role
+FROM users
+WHERE email = 'admin@example.com';
+```
+
+The account should have the `ADMIN` role.
+
+### 3. Log in again
+
+Log in using `POST /api/auth/login` and obtain a JWT for the administrator account. Use this token in requests to the administrative reconciliation endpoints.
+
+- `GET /api/reconciliation/missing-ledger-entries`
+- `GET /api/reconciliation/unbalanced-transfers`
+
+These endpoints require the `ADMIN` role. Regular users should receive a `403 Forbidden` response, while unauthenticated requests should receive a `401 Unauthorized` response.
+
+**Security note:** This database update is intended for local development and controlled administration. Do not expose public admin registration or allow untrusted users to modify their own roles. Use an authorized, audited provisioning process in deployed environments.
+
 ## Idempotent Transfers
 
 The transfer endpoint accepts an `Idempotency-Key` header.
@@ -220,7 +261,7 @@ The application includes centralized exception handling and request validation. 
 - Automated ledger integrity checks
 - Improved operational monitoring and audit reliability
 
-Redis Integration (Optional)
+## Redis Integration (Optional)
 
 Redis caching support has been added to the project, but it is currently disabled because a Redis server connection has not been established. The related Redis configuration in application.properties and the Redis-related code are commented out, so the application can run without Redis.
 
@@ -228,17 +269,17 @@ How to Enable Redis
 
 Follow these steps to establish a Redis connection and enable the integration:
 
-Install Redis: Install Redis locally or use Docker to run a Redis server.
+1. Install Redis: Install Redis locally or use Docker to run a Redis server.
 
 docker run --name digital-wallet-redis -p 6379:6379 -d redis
 
-Verify the connection: Ensure the Redis container is running and accessible on localhost:6379.
+2. Verify the connection: Ensure the Redis container is running and accessible on localhost:6379.
 
 docker ps
 
-Enable the Redis dependency: Verify that the Redis dependency, such as spring-boot-starter-data-redis, is present in pom.xml. Add it if it is missing.
+3. Enable the Redis dependency: Verify that the Redis dependency, such as spring-boot-starter-data-redis, is present in pom.xml. Add it if it is missing.
 
-Update application.properties: Uncomment the Redis configuration and ensure the host and port match the running Redis server. For a local instance, the typical settings are:
+4. Update application.properties: Uncomment the Redis configuration and ensure the host and port match the running Redis server. For a local instance, the typical settings are:
 
 **Configure environment variables.** The application supports the following Redis settings:
 
@@ -255,11 +296,11 @@ Update application.properties: Uncomment the Redis configuration and ensure the 
    spring.cache.type=redis
    ```
 
-Uncomment the Redis-related code: Re-enable the Redis configuration, cache configuration, and any Redis-related services that were commented out. Ensure the required beans and dependencies are correctly configured.
+5. Uncomment the Redis-related code: Re-enable the Redis configuration, cache configuration, and any Redis-related services that were commented out. Ensure the required beans and dependencies are correctly configured.
 
-Restart and test: Restart the Spring Boot application and verify that the Redis connection succeeds. Test the relevant caching operations to confirm that Redis is working as expected.
+6. Restart and test: Restart the Spring Boot application and verify that the Redis connection succeeds. Test the relevant caching operations to confirm that Redis is working as expected.
 
-Note: Redis integration is currently optional and has not been verified end-to-end in the active application configuration. The exact steps may vary depending on the Redis configuration and code present in the project.
+**Note**: Redis integration is currently optional and has not been verified end-to-end in the active application configuration. The exact steps may vary depending on the Redis configuration and code present in the project.
 
 ## Author
 
