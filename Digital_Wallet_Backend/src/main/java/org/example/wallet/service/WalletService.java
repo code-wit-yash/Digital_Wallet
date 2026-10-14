@@ -33,6 +33,18 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
+import org.example.wallet.dto.WalletBalanceResponse;
+import org.springframework.cache.annotation.Cacheable;
+
+//import org.example.wallet.event.WalletBalanceChangedEvent;
+import org.springframework.context.ApplicationEventPublisher;
+
+import org.example.transaction.service.LedgerService;
+
+import org.example.audit.service.AuditLogService;
+
+import org.example.audit.event.WalletAuditEvent;
+
 @Service
 public class WalletService {
 
@@ -40,12 +52,20 @@ public class WalletService {
     private final UserRepository userRepository;
     private final WalletTransactionRepository transactionRepository;
     private final IdempotencyRecordRepository idempotencyRepository;
+    private final ApplicationEventPublisher eventPublisher;
+    private final LedgerService ledgerService;
+    private final AuditLogService auditLogService;
+    //private final WalletBalanceCacheService walletBalanceCacheService;
 
-    public WalletService(WalletRepository walletRepository, UserRepository userRepository, WalletTransactionRepository transactionRepository, IdempotencyRecordRepository idempotencyRepository) {
+    public WalletService(WalletRepository walletRepository, UserRepository userRepository, WalletTransactionRepository transactionRepository, IdempotencyRecordRepository idempotencyRepository, ApplicationEventPublisher eventPublisher, LedgerService ledgerService, AuditLogService auditLogService) {
         this.walletRepository = walletRepository;
         this.userRepository = userRepository;
         this.transactionRepository = transactionRepository;
         this.idempotencyRepository = idempotencyRepository;
+        this.eventPublisher = eventPublisher;
+        this.ledgerService = ledgerService;
+        this.auditLogService = auditLogService;
+       // this.walletBalanceCacheService = walletBalanceCacheService;
     }
 
     @Transactional
@@ -92,12 +112,35 @@ public class WalletService {
         WalletTransaction transaction = new WalletTransaction(
                 wallet, amount, TransactionType.DEPOSIT);
 
-        transactionRepository.save(transaction);
-
         wallet.credit(amount);
         transaction.markSuccessful();
 
-        return transactionRepository.save(transaction);
+        WalletTransaction savedTransaction =
+                transactionRepository.save(transaction);
+
+//        eventPublisher.publishEvent(
+//                new WalletBalanceChangedEvent(user.getId())
+//        );
+
+        ledgerService.recordWalletOperation(
+                savedTransaction,
+                amount,
+                wallet.getId(),
+                true
+        );
+
+        eventPublisher.publishEvent(
+                new WalletAuditEvent(
+                        user.getId(),
+                        "DEPOSIT",
+                        "SUCCESS",
+                        "Deposit completed; transactionId="
+                                + savedTransaction.getId()
+                )
+        );
+
+        return savedTransaction;
+
     }
 
     @Transactional
@@ -122,12 +165,34 @@ public class WalletService {
         WalletTransaction transaction = new WalletTransaction(
                 wallet, amount, TransactionType.WITHDRAWAL);
 
-        transactionRepository.save(transaction);
-
         wallet.debit(amount);
         transaction.markSuccessful();
 
-        return transactionRepository.save(transaction);
+        WalletTransaction savedTransaction =
+                transactionRepository.save(transaction);
+
+//        eventPublisher.publishEvent(
+//                new WalletBalanceChangedEvent(user.getId())
+//        );
+
+        ledgerService.recordWalletOperation(
+                savedTransaction,
+                amount,
+                wallet.getId(),
+                false
+        );
+
+        eventPublisher.publishEvent(
+                new WalletAuditEvent(
+                        user.getId(),
+                        "WITHDRAWAL",
+                        "SUCCESS",
+                        "Withdrawal completed; transactionId="
+                                + savedTransaction.getId()
+                )
+        );
+
+        return savedTransaction;
     }
 
     @Transactional(readOnly = true)
@@ -271,9 +336,44 @@ public class WalletService {
         transactionRepository.save(sent);
         transactionRepository.save(received);
 
+        ledgerService.recordTransfer(
+                sent,
+                received,
+                transferId,
+                amount,
+                senderWallet.getId(),
+                recipientWallet.getId()
+        );
+
         // Store the original sender-side transaction for future retries.
         record.setResponseReferenceId(sent.getReferenceId());
         idempotencyRepository.save(record);
+
+        eventPublisher.publishEvent(
+                new WalletAuditEvent(
+                        sender.getId(),
+                        "TRANSFER_SENT",
+                        "SUCCESS",
+                        "Transfer completed; transferId=" + transferId
+                )
+        );
+
+        eventPublisher.publishEvent(
+                new WalletAuditEvent(
+                        recipient.getId(),
+                        "TRANSFER_RECEIVED",
+                        "SUCCESS",
+                        "Transfer received; transferId=" + transferId
+                )
+        );
+
+        // Invalidate cached balances for both users after commit.
+//        eventPublisher.publishEvent(
+//                new WalletBalanceChangedEvent(
+//                        sender.getId(),
+//                        recipient.getId()
+//                )
+//        );
 
         return sent;
     }
@@ -293,4 +393,14 @@ public class WalletService {
             throw new IllegalStateException("SHA-256 is unavailable", ex);
         }
     }
+
+//    @Transactional(readOnly = true)
+//    public WalletBalanceResponse getCachedWalletBalance(String email) {
+//        User user = userRepository.findByEmail(email)
+//                .orElseThrow(() ->
+//                        new NoSuchElementException("User not found"));
+//
+//        return walletBalanceCacheService.getWalletBalance(user.getId());
+//    }
+
 }

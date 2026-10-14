@@ -1,6 +1,6 @@
 package org.example.wallet.controller;
 
-import org.example.wallet.dto.WalletResponse;
+import org.example.wallet.dto.*;
 import org.example.wallet.entity.Wallet;
 import org.example.wallet.service.WalletService;
 import org.springframework.http.ResponseEntity;
@@ -10,29 +10,44 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
-import org.example.wallet.dto.DepositRequest;
-import org.example.wallet.dto.DepositResponse;
 import org.example.transaction.entity.WalletTransaction;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
-import org.example.wallet.dto.TransactionHistoryResponse;
 import java.util.List;
 
-import org.example.wallet.dto.TransferRequest;
-import org.example.wallet.dto.TransferResponse;
-
 import org.springframework.web.bind.annotation.RequestHeader;
+
+//import org.example.wallet.service.WalletBalanceCacheService;
 
 @RestController
 @RequestMapping("/api/wallet")
 public class WalletController {
 
     private final WalletService walletService;
+//    private final WalletBalanceCacheService walletBalanceCacheService;
 
     public WalletController(WalletService walletService) {
         this.walletService = walletService;
+//        this.walletBalanceCacheService = walletBalanceCacheService;
     }
+
+//    @GetMapping("/me")
+//    public ResponseEntity<WalletResponse> getMyWallet(
+//            Authentication authentication) {
+//
+//        WalletBalanceResponse balance =
+//                walletService.getCachedWalletBalance(
+//                        authentication.getName());
+//
+//        WalletResponse response = new WalletResponse(
+//                balance.walletId(),
+//                balance.balance(),
+//                balance.currency()
+//        );
+//
+//        return ResponseEntity.ok(response);
+//    }
 
     @GetMapping("/me")
     public ResponseEntity<WalletResponse> getMyWallet(
